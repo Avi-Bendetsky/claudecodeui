@@ -10,7 +10,7 @@ Thanks for your interest in contributing to CloudCLI UI! Before you start, pleas
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 22 or later
+- [Node.js](https://nodejs.org/) 22.13.0 or later
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
 
 ## Getting Started
