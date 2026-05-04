@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   ChangeEvent,
@@ -161,6 +162,8 @@ export default function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const { toast } = useToast();
+  useState(-1);
+
   const textareaRect = textareaRef.current?.getBoundingClientRect();
   const commandMenuPosition = {
     top: textareaRect ? Math.max(16, textareaRect.top - 316) : 0,

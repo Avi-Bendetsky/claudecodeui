@@ -290,8 +290,11 @@ function ChatInterface({
       return;
     }
 
-    const handleGlobalEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) {
+    const handleGlobalAbort = (event: KeyboardEvent) => {
+      const isEscape = event.key === 'Escape';
+      const isCtrlC = event.key === 'c' && event.ctrlKey && !event.shiftKey && !event.altKey;
+
+      if ((!isEscape && !isCtrlC) || event.repeat || event.defaultPrevented) {
         return;
       }
 
@@ -299,9 +302,9 @@ function ChatInterface({
       handleAbortSession();
     };
 
-    document.addEventListener('keydown', handleGlobalEscape, { capture: true });
+    document.addEventListener('keydown', handleGlobalAbort, { capture: true });
     return () => {
-      document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
+      document.removeEventListener('keydown', handleGlobalAbort, { capture: true });
     };
   }, [canAbortSession, handleAbortSession, isLoading]);
 

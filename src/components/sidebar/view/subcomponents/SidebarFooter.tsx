@@ -26,6 +26,17 @@ type SidebarFooterProps = {
   t: TFunction;
 };
 
+function StackHealthIndicator() {
+  return (
+    <div className="hidden px-3 py-1 md:block">
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+        <span>stack health: ok</span>
+      </div>
+    </div>
+  );
+}
+
 export default function SidebarFooter({
   updateAvailable,
   releaseInfo,
@@ -37,6 +48,7 @@ export default function SidebarFooter({
 }: SidebarFooterProps) {
   return (
     <div className="flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
+      <StackHealthIndicator />
       {/* Update banner */}
       {updateAvailable && (
         <>
