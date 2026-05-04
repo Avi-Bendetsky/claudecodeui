@@ -309,6 +309,18 @@ function ChatInterface({
   }, [canAbortSession, handleAbortSession, isLoading]);
 
   useEffect(() => {
+    const handleCtrlL = (event: KeyboardEvent) => {
+      if (event.key === 'l' && event.ctrlKey && !event.shiftKey && !event.altKey && !event.repeat) {
+        event.preventDefault();
+        resetStreamingState();
+      }
+    };
+
+    document.addEventListener('keydown', handleCtrlL);
+    return () => document.removeEventListener('keydown', handleCtrlL);
+  }, [resetStreamingState]);
+
+  useEffect(() => {
     return () => {
       resetStreamingState();
     };

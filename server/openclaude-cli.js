@@ -2,7 +2,9 @@ import { spawn } from 'child_process';
 
 import crossSpawn from 'cross-spawn';
 
+import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
+import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
 
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
@@ -11,7 +13,7 @@ let activeOpenClaudeProcesses = new Map();
 
 export async function spawnOpenClaude(command, options = {}, ws) {
   return new Promise(async (resolve, reject) => {
-    const { sessionId, projectPath, cwd, resume, model, agentsPath, agentName } = options;
+    const { sessionId, projectPath, cwd, resume, model, agentsPath, agentName, sessionSummary } = options;
     let capturedSessionId = sessionId || `occ-${Date.now()}`;
     let settled = false;
 
@@ -48,6 +50,32 @@ export async function spawnOpenClaude(command, options = {}, ws) {
     }
 
     const processKey = capturedSessionId;
+    let terminalNotificationSent = false;
+
+    const notifyTerminalState = ({ code = null, error = null } = {}) => {
+      if (terminalNotificationSent) return;
+      terminalNotificationSent = true;
+
+      const finalSessionId = capturedSessionId || sessionId || processKey;
+      if (code === 0 && !error) {
+        notifyRunStopped({
+          userId: ws?.userId || null,
+          provider: 'openclaude',
+          sessionId: finalSessionId,
+          sessionName: sessionSummary,
+          stopReason: 'completed',
+        });
+        return;
+      }
+
+      notifyRunFailed({
+        userId: ws?.userId || null,
+        provider: 'openclaude',
+        sessionId: finalSessionId,
+        sessionName: sessionSummary,
+        error: error || `OCC exited with code ${code}`,
+      });
+    };
 
     const settleOnce = (callback) => {
       if (settled) return;
@@ -79,27 +107,40 @@ export async function spawnOpenClaude(command, options = {}, ws) {
 
       let lineBuffer = '';
 
+      const processOutputLine = (line) => {
+        if (!line.trim()) return;
+        try {
+          const event = JSON.parse(line);
+
+          if (event.type === 'system' && event.subtype === 'init') {
+            if (event.session_id && event.session_id !== capturedSessionId) {
+              const oldKey = capturedSessionId;
+              capturedSessionId = event.session_id;
+              activeOpenClaudeProcesses.delete(oldKey);
+              activeOpenClaudeProcesses.set(capturedSessionId, occProcess);
+              if (ws.setSessionId) ws.setSessionId(capturedSessionId);
+            }
+            return;
+          }
+
+          const msg = normalizeOccEvent(event, capturedSessionId);
+          if (msg) ws.send(msg);
+        } catch {
+          ws.send(createNormalizedMessage({
+            kind: 'text',
+            content: line,
+            sessionId: capturedSessionId,
+            provider: 'openclaude',
+            role: 'assistant',
+          }));
+        }
+      };
+
       occProcess.stdout.on('data', (chunk) => {
         lineBuffer += chunk.toString();
-        const lines = lineBuffer.split('\n');
+        const lines = lineBuffer.split(/\r?\n/);
         lineBuffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line);
-            const msg = normalizeOccEvent(event, capturedSessionId);
-            if (msg) ws.send(msg);
-          } catch {
-            ws.send(createNormalizedMessage({
-              kind: 'text',
-              content: line,
-              sessionId: capturedSessionId,
-              provider: 'openclaude',
-              role: 'assistant',
-            }));
-          }
-        }
+        for (const line of lines) processOutputLine(line);
       });
 
       occProcess.stderr.on('data', (chunk) => {
@@ -114,25 +155,44 @@ export async function spawnOpenClaude(command, options = {}, ws) {
       });
 
       occProcess.on('close', (code) => {
+        if (lineBuffer.trim()) {
+          processOutputLine(lineBuffer.trim());
+          lineBuffer = '';
+        }
+
         ws.send(createNormalizedMessage({
           kind: 'complete',
           exitCode: code,
+          isNewSession: !sessionId && !!command,
           sessionId: capturedSessionId,
           provider: 'openclaude',
         }));
+
+        notifyTerminalState({ code });
         settleOnce(() => resolve({ exitCode: code, sessionId: capturedSessionId }));
       });
 
-      occProcess.on('error', (err) => {
+      occProcess.on('error', async (err) => {
+        activeOpenClaudeProcesses.delete(capturedSessionId);
+
+        const installed = await providerAuthService.isProviderInstalled('openclaude').catch(() => true);
+        const errorContent = !installed
+          ? 'OCC (open-claude-code) is not installed. Install with: npm install -g @ruvnet/open-claude-code'
+          : `Failed to start occ: ${err.message}`;
+
         ws.send(createNormalizedMessage({
           kind: 'error',
-          content: `Failed to start occ: ${err.message}`,
+          content: errorContent,
           isError: true,
           sessionId: capturedSessionId,
           provider: 'openclaude',
         }));
+
+        notifyTerminalState({ error: err.message });
         settleOnce(() => reject(err));
       });
+
+      occProcess.stdin.end();
     } catch (err) {
       settleOnce(() => reject(err));
     }
@@ -144,7 +204,20 @@ function normalizeOccEvent(event, sessionId) {
 
   switch (event.type) {
     case 'stream_event':
-      return createNormalizedMessage({ ...base, kind: 'stream_delta', content: event.text, role: 'assistant' });
+      return createNormalizedMessage({ ...base, kind: 'stream_delta', content: event.text || event.delta || '', role: 'assistant' });
+
+    case 'assistant':
+      if (event.message?.content?.length > 0) {
+        const normalized = sessionsService.normalizeMessage('openclaude', event, sessionId);
+        if (normalized?.length > 0) {
+          for (const msg of normalized) return msg;
+        }
+        const textBlock = event.message.content.find((b) => b.type === 'text');
+        if (textBlock) {
+          return createNormalizedMessage({ ...base, kind: 'stream_delta', content: textBlock.text, role: 'assistant' });
+        }
+      }
+      return null;
 
     case 'tool_use':
       return createNormalizedMessage({ ...base, kind: 'tool_use', toolName: event.name, toolInput: event.input, toolId: event.tool_use_id });
@@ -153,19 +226,28 @@ function normalizeOccEvent(event, sessionId) {
       return createNormalizedMessage({ ...base, kind: 'tool_result', toolId: event.tool_use_id, toolResult: { content: event.content, isError: event.is_error } });
 
     case 'thinking':
-      return createNormalizedMessage({ ...base, kind: 'thinking', content: event.content, role: 'assistant' });
+      return createNormalizedMessage({ ...base, kind: 'thinking', content: event.content || event.thinking || '', role: 'assistant' });
 
     case 'error':
-      return createNormalizedMessage({ ...base, kind: 'error', content: event.message, isError: true });
+      return createNormalizedMessage({ ...base, kind: 'error', content: event.message || event.error || 'Unknown error', isError: true });
+
+    case 'result':
+      return createNormalizedMessage({ ...base, kind: 'complete', exitCode: event.subtype === 'success' ? 0 : 1, resultText: event.result || '', isError: event.subtype !== 'success' });
 
     case 'stop':
       return createNormalizedMessage({ ...base, kind: 'complete', reason: event.reason });
+
+    case 'permission_request':
+      return createNormalizedMessage({ ...base, kind: 'permission_request', toolName: event.tool_name, toolInput: event.input, requestId: event.request_id });
+
+    case 'agent_spawn':
+      return createNormalizedMessage({ ...base, kind: 'tool_use', toolName: 'Agent', toolInput: { description: event.description, prompt: event.prompt }, toolId: event.agent_id });
 
     case 'stream_request_start':
       return createNormalizedMessage({ ...base, kind: 'status', status: 'thinking', content: `Turn ${event.turn || 1}` });
 
     case 'compaction':
-      return createNormalizedMessage({ ...base, kind: 'status', status: 'compacting', content: `Compacted ${event.count} messages` });
+      return createNormalizedMessage({ ...base, kind: 'status', status: 'compacting', content: `Compacted ${event.count || 0} messages` });
 
     default:
       return null;

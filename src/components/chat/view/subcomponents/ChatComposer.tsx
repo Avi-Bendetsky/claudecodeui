@@ -162,7 +162,7 @@ export default function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const { toast } = useToast();
-  useState(-1);
+  const [, setHistoryIndex] = useState(-1);
 
   const textareaRect = textareaRef.current?.getBoundingClientRect();
   const commandMenuPosition = {

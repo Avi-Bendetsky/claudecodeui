@@ -95,6 +95,31 @@ export async function queryCrewAI(command, options = {}, ws) {
   }
 }
 
+export async function fetchCrewList() {
+  const bridgeUrl = process.env.CREWAI_BRIDGE_URL || 'http://localhost:8000';
+  const resp = await fetch(`${bridgeUrl}/crew/list`);
+  if (!resp.ok) throw new Error(`CrewAI bridge returned ${resp.status}`);
+  return resp.json();
+}
+
+export async function fetchAgentList() {
+  const bridgeUrl = process.env.CREWAI_BRIDGE_URL || 'http://localhost:8000';
+  const resp = await fetch(`${bridgeUrl}/agent/list`);
+  if (!resp.ok) throw new Error(`CrewAI bridge returned ${resp.status}`);
+  return resp.json();
+}
+
+export async function checkCrewAIHealth() {
+  const bridgeUrl = process.env.CREWAI_BRIDGE_URL || 'http://localhost:8000';
+  try {
+    const resp = await fetch(`${bridgeUrl}/health`, { signal: AbortSignal.timeout(3000) });
+    if (!resp.ok) return { status: 'error', message: `HTTP ${resp.status}` };
+    return await resp.json();
+  } catch {
+    return { status: 'offline' };
+  }
+}
+
 function normalizeCrewEvent(event, sessionId) {
   const base = { sessionId, provider: 'crewai' };
 
@@ -110,6 +135,12 @@ function normalizeCrewEvent(event, sessionId) {
 
     case 'task_output':
       return createNormalizedMessage({ ...base, kind: 'text', content: event.content, role: 'assistant' });
+
+    case 'agent_output':
+      return createNormalizedMessage({ ...base, kind: 'text', content: event.output || event.content, role: 'assistant', toolName: event.agent });
+
+    case 'tool_use':
+      return createNormalizedMessage({ ...base, kind: 'tool_use', toolName: event.tool_name, toolInput: event.input, toolId: event.tool_id });
 
     case 'crew_complete':
       return createNormalizedMessage({ ...base, kind: 'text', content: event.result, role: 'assistant' });

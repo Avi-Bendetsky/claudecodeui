@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import express from 'express';
 import cors from 'cors';
 import mime from 'mime-types';
+import rateLimit from 'express-rate-limit';
 
 import { AppError, WORKSPACES_ROOT, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
@@ -45,6 +46,21 @@ import {
     isGeminiSessionActive,
     getActiveGeminiSessions,
 } from './gemini-cli.js';
+import {
+    spawnOpenClaude,
+    abortOpenClaudeSession,
+    isOpenClaudeSessionActive,
+    getActiveOpenClaudeSessions,
+} from './openclaude-cli.js';
+import {
+    queryCrewAI,
+    abortCrewAISession,
+    isCrewAISessionActive,
+    getActiveCrewAISessions,
+    fetchCrewList,
+    fetchAgentList,
+    checkCrewAIHealth,
+} from './crewai-bridge-client.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -92,21 +108,29 @@ const wss = createWebSocketServer(server, {
         spawnCursor,
         queryCodex,
         spawnGemini,
+        spawnOpenClaude,
+        queryCrewAI,
         abortClaudeSDKSession,
         abortCursorSession,
         abortCodexSession,
         abortGeminiSession,
+        abortOpenClaudeSession,
+        abortCrewAISession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
         isCodexSessionActive,
         isGeminiSessionActive,
+        isOpenClaudeSessionActive,
+        isCrewAISessionActive,
         reconnectSessionWriter,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
         getActiveCursorSessions,
         getActiveCodexSessions,
         getActiveGeminiSessions,
+        getActiveOpenClaudeSessions,
+        getActiveCrewAISessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),
@@ -161,6 +185,41 @@ app.get('/api/stack-health', async (req, res) => {
 
     const allOk = Object.values(checks).every(c => c.status === 'ok');
     res.json({ status: allOk ? 'ok' : 'degraded', services: checks });
+});
+
+const openClaudeAgentsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.get('/api/openclaude/agents', openClaudeAgentsLimiter, async (req, res) => {
+    const agentsPath = process.env.OCC_AGENTS_PATH;
+    if (!agentsPath) return res.json([]);
+    try {
+        const data = await fsPromises.readFile(agentsPath, 'utf8');
+        res.json(JSON.parse(data));
+    } catch { res.json([]); }
+});
+
+app.get('/api/crewai/crews', async (_req, res) => {
+    try {
+        const crews = await fetchCrewList();
+        res.json(crews);
+    } catch { res.json([]); }
+});
+
+app.get('/api/crewai/agents', async (_req, res) => {
+    try {
+        const agents = await fetchAgentList();
+        res.json(agents);
+    } catch { res.json([]); }
+});
+
+app.get('/api/crewai/health', async (_req, res) => {
+    const health = await checkCrewAIHealth();
+    res.json(health);
 });
 
 // Optional API key validation (if configured)
