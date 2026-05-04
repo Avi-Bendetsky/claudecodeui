@@ -14,6 +14,8 @@ type ChatIncomingMessage = AnyRecord & {
   command?: string;
   options?: AnyRecord;
   provider?: string;
+  targetProvider?: string;
+  context?: string;
   sessionId?: string;
   requestId?: string;
   allow?: unknown;
@@ -156,12 +158,17 @@ export function handleChatConnection(
         const prompt = typeof data.command === 'string' ? data.command : '';
         const fullCommand = context ? `Context from previous session:\n${context}\n\n${prompt}` : prompt;
 
-        if (targetProvider === 'openclaude') {
-          await dependencies.spawnOpenClaude(fullCommand, data.options, writer);
-        } else if (targetProvider === 'crewai') {
-          await dependencies.queryCrewAI(fullCommand, data.options, writer);
-        } else {
-          await dependencies.queryClaudeSDK(fullCommand, data.options, writer);
+        switch (targetProvider) {
+          case 'openclaude':
+            await dependencies.spawnOpenClaude(fullCommand, data.options, writer);
+            break;
+          case 'crewai':
+            await dependencies.queryCrewAI(fullCommand, data.options, writer);
+            break;
+          case 'claude':
+          default:
+            await dependencies.queryClaudeSDK(fullCommand, data.options, writer);
+            break;
         }
         return;
       }
