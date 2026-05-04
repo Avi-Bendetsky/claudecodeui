@@ -42,7 +42,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 - [ ] **P2-08** Test `GET /health` with curl
 - [ ] **P2-09** Test `GET /crew/list` with curl
 - [ ] **P2-10** Test `POST /crew/run` with curl
-- [ ] **P2-11** Create `bridge/README.md` with startup instructions
+- [x] **P2-11** Create `bridge/README.md` with startup instructions
 
 ---
 
@@ -131,7 +131,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] **P7-02** OCC session synchronizer reads checkpoint files
 - [x] **P7-03** CrewAI session synchronizer posts crew run results
 - [x] **P7-04** Sessions DB supports provider-based filtering via `getSessionsByProvider()`
-- [ ] **P7-05** Cross-context: resume CrewAI result as OCC follow-up task
+- [x] **P7-05** Cross-context: resume CrewAI result as OCC follow-up task
 - [ ] **P7-06** Test: complete run in each provider, all sessions appear in sidebar
 - [ ] **P7-07** Test: reload page, sessions still present and resumable
 
@@ -159,15 +159,15 @@ Run after completing each phase:
 |-------|-------|------|-----------|---|
 | Bugs  | 4     | 4    | 0         | 100% |
 | P1    | 9     | 7    | 2 (smoke tests) | 78% |
-| P2    | 11    | 4    | 7 (deps + manual tests) | 36% |
+| P2    | 11    | 5    | 6 (deps + manual tests) | 45% |
 | P3    | 21    | 17   | 4 (smoke tests) | 81% |
 | P4    | 12    | 10   | 2 (smoke tests) | 83% |
 | P5    | 13    | 12   | 1 (visual comparison) | 92% |
 | P6    | 6     | 5    | 1 (cold start test) | 83% |
-| P7    | 7     | 4    | 3 (cross-context + E2E) | 57% |
-| **Total** | **83** | **63** | **20** | **76%** |
+| P7    | 7     | 5    | 2 (E2E tests) | 71% |
+| **Total** | **83** | **65** | **18** | **78%** |
 
-Remaining items are primarily smoke/E2E tests and the P2 Python dependency setup + manual curl tests.
+All code implementation is complete. Remaining 18 items are smoke/E2E tests requiring running services, the P2 Python dependency setup, and manual curl tests.
 
 ---
 
