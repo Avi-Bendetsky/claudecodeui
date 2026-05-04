@@ -340,46 +340,45 @@ export default function ChatComposer({
               <ImageIcon />
             </PromptInputButton>
 
-            <Tooltip content={t(`codex.descriptions.${permissionMode}`)} position="top">
-              <button
-                type="button"
-                onClick={handleModeSwitch}
-                className={`rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
-                  permissionMode === 'default'
-                    ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
-                    : permissionMode === 'acceptEdits'
-                      ? 'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25'
-                      : permissionMode === 'auto'
-                        ? 'border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600/40 dark:bg-amber-900/15 dark:text-amber-300 dark:hover:bg-amber-900/25'
-                        : permissionMode === 'bypassPermissions'
-                          ? 'border-red-300/60 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-600/40 dark:bg-red-900/15 dark:text-red-300 dark:hover:bg-red-900/25'
-                          : 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className={`h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5 ${
-                      permissionMode === 'default'
-                        ? 'bg-muted-foreground'
-                        : permissionMode === 'acceptEdits'
-                          ? 'bg-green-500'
-                          : permissionMode === 'auto'
-                            ? 'bg-amber-500'
-                            : permissionMode === 'bypassPermissions'
-                              ? 'bg-red-500'
-                              : 'bg-primary'
-                    }${permissionMode !== 'default' ? ' animate-pulse' : ''}`}
-                  />
-                  <span className="hidden whitespace-nowrap sm:inline">
-                    {permissionMode === 'default' && t('codex.modes.default')}
-                    {permissionMode === 'acceptEdits' && t('codex.modes.acceptEdits')}
-                    {permissionMode === 'auto' && t('codex.modes.auto')}
-                    {permissionMode === 'bypassPermissions' && t('codex.modes.bypassPermissions')}
-                    {permissionMode === 'plan' && t('codex.modes.plan')}
-                  </span>
-                </div>
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={onModeSwitch}
+              className={`rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
+                permissionMode === 'default'
+                  ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
+                  : permissionMode === 'acceptEdits'
+                    ? 'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25'
+                    : permissionMode === 'auto'
+                      ? 'border-blue-300/60 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600/40 dark:bg-blue-900/15 dark:text-blue-300 dark:hover:bg-blue-900/25'
+                      : permissionMode === 'bypassPermissions'
+                        ? 'border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-600/40 dark:bg-orange-900/15 dark:text-orange-300 dark:hover:bg-orange-900/25'
+                        : 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10'
+              }`}
+              title={t('input.clickToChangeMode')}
+            >
+              <div className="flex items-center gap-1.5">
+                <div
+                  className={`h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5 ${
+                    permissionMode === 'default'
+                      ? 'bg-muted-foreground'
+                      : permissionMode === 'acceptEdits'
+                        ? 'bg-green-500'
+                        : permissionMode === 'auto'
+                          ? 'bg-blue-500'
+                          : permissionMode === 'bypassPermissions'
+                            ? 'bg-orange-500'
+                            : 'bg-primary'
+                  }`}
+                />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  {permissionMode === 'default' && t('codex.modes.default')}
+                  {permissionMode === 'acceptEdits' && t('codex.modes.acceptEdits')}
+                  {permissionMode === 'auto' && t('codex.modes.auto')}
+                  {permissionMode === 'bypassPermissions' && t('codex.modes.bypassPermissions')}
+                  {permissionMode === 'plan' && t('codex.modes.plan')}
+                </span>
+              </div>
+            </button>
 
             {provider === 'claude' && (
               <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
