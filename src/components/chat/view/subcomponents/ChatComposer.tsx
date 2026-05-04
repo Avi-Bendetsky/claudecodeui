@@ -162,7 +162,20 @@ export default function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const { toast } = useToast();
-  const [, setHistoryIndex] = useState(-1);
+  const isCliTheme = document.documentElement.classList.contains('cli-theme');
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history] = useState<string[]>([]);
+
+  const handleComposerKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'ArrowUp' && !input && history.length > 0) {
+      const next = Math.min(historyIndex + 1, history.length - 1);
+      setHistoryIndex(next);
+      onInputChange({ target: { value: history[next] } } as ChangeEvent<HTMLTextAreaElement>);
+      e.preventDefault();
+      return;
+    }
+    onTextareaKeyDown(e);
+  };
 
   const textareaRect = textareaRef.current?.getBoundingClientRect();
   const commandMenuPosition = {
@@ -200,7 +213,7 @@ export default function ChatComposer({
   };
 
   return (
-    <div className="flex-shrink-0 p-2 pb-2 sm:p-4 sm:pb-4 md:p-4 md:pb-6">
+    <div className={`flex-shrink-0 p-2 pb-2 sm:p-4 sm:pb-4 md:p-4 md:pb-6 ${isCliTheme ? 'cli-theme-composer' : ''}`}>
       {!hasPendingPermissions && (
         <ClaudeStatus
           status={claudeStatus}
@@ -324,7 +337,7 @@ export default function ChatComposer({
               value={input}
               onChange={onInputChange}
               onClick={onTextareaClick}
-              onKeyDown={onTextareaKeyDown}
+              onKeyDown={handleComposerKeyDown}
               onPaste={onTextareaPaste}
               onScroll={(event) => onTextareaScrollSync(event.target as HTMLTextAreaElement)}
               onFocus={() => onInputFocusChange?.(true)}

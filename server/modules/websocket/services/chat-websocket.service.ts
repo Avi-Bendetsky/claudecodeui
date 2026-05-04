@@ -150,6 +150,22 @@ export function handleChatConnection(
         return;
       }
 
+      if (messageType === 'cross-context-resume') {
+        const targetProvider = readProvider(data.targetProvider);
+        const context = typeof data.context === 'string' ? data.context : '';
+        const prompt = typeof data.command === 'string' ? data.command : '';
+        const fullCommand = context ? `Context from previous session:\n${context}\n\n${prompt}` : prompt;
+
+        if (targetProvider === 'openclaude') {
+          await dependencies.spawnOpenClaude(fullCommand, data.options, writer);
+        } else if (targetProvider === 'crewai') {
+          await dependencies.queryCrewAI(fullCommand, data.options, writer);
+        } else {
+          await dependencies.queryClaudeSDK(fullCommand, data.options, writer);
+        }
+        return;
+      }
+
       if (messageType === 'cursor-resume') {
         await dependencies.spawnCursor(
           '',
