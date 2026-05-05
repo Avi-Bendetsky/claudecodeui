@@ -92,6 +92,11 @@ const __dirname = getModuleDir(import.meta.url);
 const APP_ROOT = findAppRoot(__dirname);
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
 
+const SERVER_PORT = process.env.SERVER_PORT || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
+const DISPLAY_HOST = getConnectableHost(HOST);
+const VITE_PORT = process.env.VITE_PORT || 5173;
+
 const app = express();
 const server = http.createServer(app);
 
@@ -239,8 +244,7 @@ app.get('*', (req, res) => {
         res.setHeader('Expires', '0');
         res.sendFile(indexPath);
     } else {
-        const redirectHost = getConnectableHost(req.hostname);
-        res.redirect(`${req.protocol}://${redirectHost}:${VITE_PORT}`);
+        res.redirect(`${req.protocol}://${DISPLAY_HOST}:${VITE_PORT}`);
     }
 });
 
@@ -270,11 +274,6 @@ app.use((err, req, res, next) => {
     },
   });
 });
-
-const SERVER_PORT = process.env.SERVER_PORT || 3001;
-const HOST = process.env.HOST || '0.0.0.0';
-const DISPLAY_HOST = getConnectableHost(HOST);
-const VITE_PORT = process.env.VITE_PORT || 5173;
 
 // Initialize database and start server
 async function startServer() {
