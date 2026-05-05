@@ -341,7 +341,11 @@ function ChatInterface({
             ? t('messageTypes.gemini')
             : provider === 'groq'
               ? t('messageTypes.groq')
-              : t('messageTypes.claude');
+              : provider === 'openclaude'
+                ? t('messageTypes.openclaude', { defaultValue: 'OpenClaude' })
+                : provider === 'crewai'
+                  ? t('messageTypes.crewai', { defaultValue: 'CrewAI' })
+                  : t('messageTypes.claude');
 
     return (
       <div className="flex h-full items-center justify-center">
@@ -479,7 +483,11 @@ function ChatInterface({
                     ? t('messageTypes.gemini')
                     : provider === 'groq'
                       ? t('messageTypes.groq')
-                      : t('messageTypes.claude'),
+                      : provider === 'openclaude'
+                        ? t('messageTypes.openclaude', { defaultValue: 'OpenClaude' })
+                        : provider === 'crewai'
+                          ? t('messageTypes.crewai', { defaultValue: 'CrewAI' })
+                          : t('messageTypes.claude'),
           })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}

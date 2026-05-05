@@ -60,6 +60,8 @@ type ChatWebSocketDependencies = {
   getActiveCursorSessions: () => unknown;
   getActiveCodexSessions: () => unknown;
   getActiveGeminiSessions: () => unknown;
+  getActiveOpenClaudeSessions: () => unknown;
+  getActiveCrewAISessions: () => unknown;
 };
 
 /**
@@ -257,6 +259,10 @@ export function handleChatConnection(
           isActive = dependencies.isCodexSessionActive(sessionId);
         } else if (provider === 'gemini') {
           isActive = dependencies.isGeminiSessionActive(sessionId);
+        } else if (provider === 'openclaude') {
+          isActive = dependencies.isOpenClaudeSessionActive(sessionId);
+        } else if (provider === 'crewai') {
+          isActive = dependencies.isCrewAISessionActive(sessionId);
         } else {
           isActive = dependencies.isClaudeSDKSessionActive(sessionId);
           if (isActive) {
@@ -306,6 +312,8 @@ export function handleChatConnection(
             cursor: dependencies.getActiveCursorSessions(),
             codex: dependencies.getActiveCodexSessions(),
             gemini: dependencies.getActiveGeminiSessions(),
+            openclaude: dependencies.getActiveOpenClaudeSessions(),
+            crewai: dependencies.getActiveCrewAISessions(),
           },
         });
       }

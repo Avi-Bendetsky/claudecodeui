@@ -61,6 +61,14 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.groq,
       onLogin: () => onProviderLogin('groq'),
     },
+    openclaude: {
+      authStatus: providerAuthStatus.openclaude,
+      onLogin: () => onProviderLogin('openclaude'),
+    },
+    crewai: {
+      authStatus: providerAuthStatus.crewai,
+      onLogin: () => onProviderLogin('crewai'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
@@ -68,6 +76,8 @@ export default function AgentsSettingsTab({
     providerAuthStatus.cursor,
     providerAuthStatus.gemini,
     providerAuthStatus.groq,
+    providerAuthStatus.openclaude,
+    providerAuthStatus.crewai,
   ]);
 
   return (
