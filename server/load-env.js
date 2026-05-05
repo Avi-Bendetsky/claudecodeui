@@ -32,3 +32,13 @@ const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.cloudcli', 'auth.db');
 if (!process.env.DATABASE_PATH) {
   process.env.DATABASE_PATH = DEFAULT_DATABASE_PATH;
 }
+
+const RECOMMENDED_VARS = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
+];
+const missing = RECOMMENDED_VARS.filter(v => !process.env[v]);
+if (missing.length > 0) {
+  console.log(`[WARN] Missing optional API keys: ${missing.join(', ')} — those providers will be unavailable`);
+}

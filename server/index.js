@@ -7,6 +7,7 @@ import http from 'http';
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 
 import { AppError } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
@@ -141,7 +142,11 @@ const wss = createWebSocketServer(server, {
 // Make WebSocket server available to routes
 app.locals.wss = wss;
 
-app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || true,
+    exposedHeaders: ['X-Refreshed-Token'],
+}));
 app.use(express.json({
     limit: '50mb',
     type: (req) => {
@@ -153,6 +158,19 @@ app.use(express.json({
     }
 }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+if (process.env.REQUEST_LOGGING !== 'false') {
+    app.use((req, res, next) => {
+        const start = Date.now();
+        res.on('finish', () => {
+            const ms = Date.now() - start;
+            if (req.path.startsWith('/api/')) {
+                console.log(`${req.method} ${req.path} ${res.statusCode} ${ms}ms`);
+            }
+        });
+        next();
+    });
+}
 
 // Public routes (no authentication required)
 app.use(createHealthRoutes({ installMode }));
@@ -287,12 +305,21 @@ async function startServer() {
         });
 
         await closeSessionsWatcher();
-        const shutdownPlugins = async () => {
+
+        const gracefulShutdown = async (signal) => {
+            console.log(`\n${c.info('[INFO]')} ${signal} received — shutting down…`);
+            server.close(() => {
+                console.log(`${c.info('[INFO]')} HTTP server closed`);
+            });
+            wss.clients.forEach((ws) => ws.close(1001, 'Server shutting down'));
             await stopAllPlugins();
-            process.exit(0);
+            setTimeout(() => process.exit(0), 5000).unref();
         };
-        process.on('SIGTERM', () => void shutdownPlugins());
-        process.on('SIGINT', () => void shutdownPlugins());
+        process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+        process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
+        process.on('unhandledRejection', (reason) => {
+            console.error(`${c.error?.('[ERROR]') ?? '[ERROR]'} Unhandled rejection:`, reason);
+        });
     } catch (error) {
         console.error('[ERROR] Failed to start server:', error);
         process.exit(1);

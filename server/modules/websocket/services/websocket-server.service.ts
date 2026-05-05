@@ -30,7 +30,20 @@ export function createWebSocketServer(
     ) => verifyWebSocketClient(info, dependencies.verifyClient)),
   });
 
+  const HEARTBEAT_INTERVAL = 30_000;
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if ((ws as any).__alive === false) { ws.terminate(); continue; }
+      (ws as any).__alive = false;
+      ws.ping();
+    }
+  }, HEARTBEAT_INTERVAL);
+  wss.on('close', () => clearInterval(heartbeat));
+
   wss.on('connection', (ws, request) => {
+    (ws as any).__alive = true;
+    ws.on('pong', () => { (ws as any).__alive = true; });
+
     const incomingRequest = request as AuthenticatedWebSocketRequest;
     const url = incomingRequest.url ?? '/';
     const pathname = new URL(url, 'http://localhost').pathname;
