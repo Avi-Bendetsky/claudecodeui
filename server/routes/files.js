@@ -11,6 +11,9 @@ import { authenticateToken } from '../middleware/auth.js';
 import { projectsDb } from '../modules/database/index.js';
 
 const router = express.Router();
+const debug = process.env.NODE_ENV !== 'production'
+    ? (...args) => console.log('[DEBUG]', ...args)
+    : () => {};
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -631,6 +634,8 @@ router.delete('/api/projects/:projectId/files', authenticateToken, async (req, r
 const uploadFilesHandler = async (req, res) => {
     const multer = (await import('multer')).default;
 
+    const BLOCKED_EXTENSIONS = /\.(exe|bat|cmd|com|msi|scr|pif|vbs|vbe|js|jse|ws|wsf|wsc|wsh|ps1|ps2|psc1|psc2|cpl|inf|reg|rgs|sct|shb|shs|lnk|dll|sys)$/i;
+
     const uploadMiddleware = multer({
         storage: multer.diskStorage({
             destination: (req, file, cb) => {
@@ -644,6 +649,12 @@ const uploadFilesHandler = async (req, res) => {
         limits: {
             fileSize: 50 * 1024 * 1024,
             files: 20
+        },
+        fileFilter: (req, file, cb) => {
+            if (BLOCKED_EXTENSIONS.test(file.originalname)) {
+                return cb(new Error(`File type not allowed: ${path.extname(file.originalname)}`));
+            }
+            cb(null, true);
         }
     });
 
@@ -668,11 +679,11 @@ const uploadFilesHandler = async (req, res) => {
                 try {
                     filePaths = JSON.parse(relativePaths);
                 } catch (e) {
-                    console.log('[DEBUG] Failed to parse relativePaths:', relativePaths);
+                    debug('Failed to parse relativePaths:', relativePaths);
                 }
             }
 
-            console.log('[DEBUG] File upload request:', {
+            debug('File upload request:', {
                 projectId,
                 targetPath: JSON.stringify(targetPath),
                 targetPathType: typeof targetPath,
@@ -689,24 +700,24 @@ const uploadFilesHandler = async (req, res) => {
                 return res.status(404).json({ error: 'Project not found' });
             }
 
-            console.log('[DEBUG] Project root:', projectRoot);
+            debug('Project root:', projectRoot);
 
             const targetDir = targetPath || '';
             let resolvedTargetDir;
 
-            console.log('[DEBUG] Target dir:', JSON.stringify(targetDir));
+            debug('Target dir:', JSON.stringify(targetDir));
 
             if (!targetDir || targetDir === '.' || targetDir === './') {
                 resolvedTargetDir = path.resolve(projectRoot);
-                console.log('[DEBUG] Using project root as target:', resolvedTargetDir);
+                debug('Using project root as target:', resolvedTargetDir);
             } else {
                 const validation = validatePathInProject(projectRoot, targetDir);
                 if (!validation.valid) {
-                    console.log('[DEBUG] Path validation failed:', validation.error);
+                    debug('Path validation failed:', validation.error);
                     return res.status(403).json({ error: validation.error });
                 }
                 resolvedTargetDir = validation.resolved;
-                console.log('[DEBUG] Resolved target dir:', resolvedTargetDir);
+                debug('Resolved target dir:', resolvedTargetDir);
             }
 
             try {
@@ -716,16 +727,16 @@ const uploadFilesHandler = async (req, res) => {
             }
 
             const uploadedFiles = [];
-            console.log('[DEBUG] Processing files:', req.files.map(f => ({ originalname: f.originalname, path: f.path })));
+            debug('Processing files:', req.files.map(f => ({ originalname: f.originalname, path: f.path })));
             for (let i = 0; i < req.files.length; i++) {
                 const file = req.files[i];
                 const fileName = (filePaths && filePaths[i]) ? filePaths[i] : file.originalname;
-                console.log('[DEBUG] Processing file:', fileName, '(originalname:', file.originalname + ')');
+                debug('Processing file:', fileName, '(originalname:', file.originalname + ')');
                 const destPath = path.join(resolvedTargetDir, fileName);
 
                 const destValidation = validatePathInProject(projectRoot, destPath);
                 if (!destValidation.valid) {
-                    console.log('[DEBUG] Destination validation failed for:', destPath);
+                    debug('Destination validation failed for:', destPath);
                     await fsPromises.unlink(file.path).catch(() => {});
                     continue;
                 }

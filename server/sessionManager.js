@@ -4,9 +4,10 @@ import os from 'os';
 
 class SessionManager {
   constructor() {
-    // Store sessions in memory with conversation history
     this.sessions = new Map();
     this.maxSessions = 100;
+    this.maxMessagesPerSession = 500;
+    this.sessionTtlMs = 24 * 60 * 60 * 1000;
     this.sessionsDir = path.join(os.homedir(), '.gemini', 'sessions');
     this.ready = this.init();
   }
@@ -14,6 +15,17 @@ class SessionManager {
   async init() {
     await this.initSessionsDir();
     await this.loadSessions();
+    this._sweepInterval = setInterval(() => this._evictStale(), 10 * 60 * 1000);
+    this._sweepInterval.unref();
+  }
+
+  _evictStale() {
+    const cutoff = Date.now() - this.sessionTtlMs;
+    for (const [id, session] of this.sessions) {
+      if (session.lastActivity.getTime() < cutoff) {
+        this.sessions.delete(id);
+      }
+    }
   }
 
   async initSessionsDir() {
@@ -62,6 +74,9 @@ class SessionManager {
     };
 
     session.messages.push(message);
+    if (session.messages.length > this.maxMessagesPerSession) {
+      session.messages = session.messages.slice(-this.maxMessagesPerSession);
+    }
     session.lastActivity = new Date();
 
     this.saveSession(sessionId);

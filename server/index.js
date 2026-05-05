@@ -6,6 +6,7 @@ import path from 'path';
 import http from 'http';
 
 import express from 'express';
+import 'express-async-errors';
 import cors from 'cors';
 import helmet from 'helmet';
 
@@ -256,7 +257,10 @@ app.use((err, req, res, next) => {
     });
   }
 
-  console.error(err);
+  console.error('[ERROR]', err.message || 'Unknown error');
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(err.stack);
+  }
 
   return res.status(500).json({
     success: false,
