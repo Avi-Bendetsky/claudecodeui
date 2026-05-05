@@ -140,5 +140,10 @@ tasks/
 !src/i18n/locales/tr/tasks.json
 !src/i18n/locales/it/tasks.json
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
 # Git worktrees
 .worktrees/

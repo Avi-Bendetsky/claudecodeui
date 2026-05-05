@@ -14,13 +14,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_app_dir = os.path.join(_root, "app")
-if _app_dir not in sys.path:
+_crewai_studio_path = os.environ.get(
+    "CREWAI_STUDIO_PATH",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
+)
+_app_dir = os.path.join(_crewai_studio_path, "app")
+if os.path.isdir(_app_dir) and _app_dir not in sys.path:
     sys.path.insert(0, _app_dir)
-os.chdir(_root)
+    os.chdir(_crewai_studio_path)
 
-from db_utils import load_entities, initialize_db
+try:
+    from db_utils import load_entities, initialize_db
+except ImportError:
+    def initialize_db():
+        pass
+
+    def load_entities(entity_type: str):
+        return []
 
 app = FastAPI(title="CrewAI Bridge", version="0.1.0")
 
