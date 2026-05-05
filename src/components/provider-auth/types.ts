@@ -18,8 +18,6 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   codex: '/api/providers/codex/auth/status',
   gemini: '/api/providers/gemini/auth/status',
   groq: '/api/providers/groq/auth/status',
-  openclaude: '/api/providers/openclaude/auth/status',
-  crewai: '/api/providers/crewai/auth/status',
 };
 
 export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
@@ -28,6 +26,4 @@ export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuth
   codex: { authenticated: false, email: null, method: null, error: null, loading },
   gemini: { authenticated: false, email: null, method: null, error: null, loading },
   groq: { authenticated: false, email: null, method: null, error: null, loading },
-  openclaude: { authenticated: false, email: null, method: null, error: null, loading },
-  crewai: { authenticated: false, email: null, method: null, error: null, loading },
 });

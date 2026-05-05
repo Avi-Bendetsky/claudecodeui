@@ -9,8 +9,6 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   codex: 'Codex',
   gemini: 'Gemini',
   groq: 'Groq',
-  openclaude: 'OpenClaude',
-  crewai: 'CrewAI',
 };
 
 export default function AgentSelectorSection({

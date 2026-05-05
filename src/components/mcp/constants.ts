@@ -6,8 +6,6 @@ export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   codex: 'Codex',
   gemini: 'Gemini',
   groq: 'Groq',
-  openclaude: 'OpenClaude',
-  crewai: 'CrewAI',
 };
 
 export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
@@ -16,8 +14,6 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   codex: ['user', 'project'],
   gemini: ['user', 'project'],
   groq: ['user', 'project'],
-  openclaude: ['user', 'project'],
-  crewai: ['user', 'project'],
 };
 
 export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
@@ -26,8 +22,6 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   codex: ['stdio', 'http'],
   gemini: ['stdio', 'http', 'sse'],
   groq: ['stdio', 'http'],
-  openclaude: ['stdio', 'http', 'sse'],
-  crewai: ['stdio', 'http'],
 };
 
 export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project'];
@@ -40,8 +34,6 @@ export const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   codex: 'bg-gray-800 text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600',
   gemini: 'bg-blue-600 text-white hover:bg-blue-700',
   groq: 'bg-orange-600 text-white hover:bg-orange-700',
-  openclaude: 'bg-emerald-600 text-white hover:bg-emerald-700',
-  crewai: 'bg-teal-600 text-white hover:bg-teal-700',
 };
 
 export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
@@ -50,8 +42,6 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   codex: true,
   gemini: true,
   groq: false,
-  openclaude: false,
-  crewai: false,
 };
 
 export const DEFAULT_MCP_FORM: McpFormState = {

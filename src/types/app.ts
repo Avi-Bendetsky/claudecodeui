@@ -1,4 +1,4 @@
-export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'groq' | 'openclaude' | 'crewai';
+export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'groq';
 
 export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'preview' | `plugin:${string}`;
 

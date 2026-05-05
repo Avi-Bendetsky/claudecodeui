@@ -303,12 +303,6 @@ export default function ProviderSelectionEmptyState({
                 groq: t("providerSelection.readyPrompt.groq", {
                   model: groqModel,
                 }),
-                openclaude: t("providerSelection.readyPrompt.openclaude", {
-                  defaultValue: "OpenClaude is ready",
-                }),
-                crewai: t("providerSelection.readyPrompt.crewai", {
-                  defaultValue: "CrewAI is ready",
-                }),
               }[provider]
             }
           </p>
