@@ -1,14 +1,28 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import crossSpawn from 'cross-spawn';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import type { WebSocketWriter } from './modules/websocket/services/websocket-writer.service.js';
 
-// Use cross-spawn on Windows for better command execution
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 
-let activeCursorProcesses = new Map(); // Track active processes by session ID
+type CursorOptions = {
+  sessionId?: string;
+  projectPath?: string;
+  cwd?: string;
+  resume?: boolean;
+  toolsSettings?: {
+    allowedShellCommands?: string[];
+    skipPermissions?: boolean;
+  };
+  skipPermissions?: boolean;
+  model?: string;
+  sessionSummary?: string;
+};
+
+const activeCursorProcesses = new Map<string, ChildProcess>();
 
 const WORKSPACE_TRUST_PATTERNS = [
   /workspace trust required/i,
@@ -17,7 +31,7 @@ const WORKSPACE_TRUST_PATTERNS = [
   /pass --trust,\s*--yolo,\s*or -f/i
 ];
 
-function isWorkspaceTrustPrompt(text = '') {
+function isWorkspaceTrustPrompt(text: string = ''): boolean {
   if (!text || typeof text !== 'string') {
     return false;
   }
@@ -25,8 +39,8 @@ function isWorkspaceTrustPrompt(text = '') {
   return WORKSPACE_TRUST_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-async function spawnCursor(command, options = {}, ws) {
-  return new Promise(async (resolve, reject) => {
+async function spawnCursor(command: string, options: CursorOptions = {}, ws: WebSocketWriter): Promise<void> {
+  return new Promise<void>(async (resolve, reject) => {
     const { sessionId, projectPath, cwd, resume, toolsSettings, skipPermissions, model, sessionSummary } = options;
     let capturedSessionId = sessionId; // Track session ID throughout the process
     let sessionCreatedSent = false; // Track if we've already sent session-created event
@@ -73,7 +87,7 @@ async function spawnCursor(command, options = {}, ws) {
     // Store process reference for potential abort
     const processKey = capturedSessionId || Date.now().toString();
 
-    const settleOnce = (callback) => {
+    const settleOnce = (callback: () => void): void => {
       if (settled) {
         return;
       }
@@ -81,13 +95,13 @@ async function spawnCursor(command, options = {}, ws) {
       callback();
     };
 
-    const runCursorProcess = (args, runReason = 'initial') => {
+    const runCursorProcess = (args: string[], runReason: string = 'initial'): void => {
       const isTrustRetry = runReason === 'trust-retry';
       let runSawWorkspaceTrustPrompt = false;
       let stdoutLineBuffer = '';
       let terminalNotificationSent = false;
 
-      const notifyTerminalState = ({ code = null, error = null } = {}) => {
+      const notifyTerminalState = ({ code = null, error = null }: { code?: number | null; error?: unknown } = {}): void => {
         if (terminalNotificationSent) {
           return;
         }
@@ -131,7 +145,7 @@ async function spawnCursor(command, options = {}, ws) {
 
       activeCursorProcesses.set(processKey, cursorProcess);
 
-      const shouldSuppressForTrustRetry = (text) => {
+      const shouldSuppressForTrustRetry = (text: string): boolean => {
         if (hasRetriedWithTrust || args.includes('--trust')) {
           return false;
         }
@@ -143,7 +157,7 @@ async function spawnCursor(command, options = {}, ws) {
         return true;
       };
 
-      const processCursorOutputLine = (line) => {
+      const processCursorOutputLine = (line: string): void => {
         if (!line || !line.trim()) {
           return;
         }
@@ -164,12 +178,11 @@ async function spawnCursor(command, options = {}, ws) {
                   // Update process key with captured session ID
                   if (processKey !== capturedSessionId) {
                     activeCursorProcesses.delete(processKey);
-                    activeCursorProcesses.set(capturedSessionId, cursorProcess);
+                    activeCursorProcesses.set(capturedSessionId!, cursorProcess);
                   }
 
-                  // Set session ID on writer (for API endpoint compatibility)
                   if (ws.setSessionId && typeof ws.setSessionId === 'function') {
-                    ws.setSessionId(capturedSessionId);
+                    ws.setSessionId(capturedSessionId!);
                   }
 
                   // Send session-created event only once for new sessions
@@ -225,8 +238,7 @@ async function spawnCursor(command, options = {}, ws) {
         }
       };
 
-      // Handle stdout (streaming JSON responses)
-      cursorProcess.stdout.on('data', (data) => {
+      cursorProcess.stdout!.on('data', (data: Buffer) => {
         const rawOutput = data.toString();
         console.log('Cursor CLI stdout:', rawOutput);
 
@@ -240,8 +252,7 @@ async function spawnCursor(command, options = {}, ws) {
         });
       });
 
-      // Handle stderr
-      cursorProcess.stderr.on('data', (data) => {
+      cursorProcess.stderr!.on('data', (data: Buffer) => {
         const stderrText = data.toString();
         console.error('Cursor CLI stderr:', stderrText);
 
@@ -307,15 +318,14 @@ async function spawnCursor(command, options = {}, ws) {
         settleOnce(() => reject(error));
       });
 
-      // Close stdin since Cursor doesn't need interactive input
-      cursorProcess.stdin.end();
+      cursorProcess.stdin!.end();
     };
 
     runCursorProcess(baseArgs, 'initial');
   });
 }
 
-function abortCursorSession(sessionId) {
+function abortCursorSession(sessionId: string): boolean {
   const process = activeCursorProcesses.get(sessionId);
   if (process) {
     console.log(`Aborting Cursor session: ${sessionId}`);
@@ -326,11 +336,11 @@ function abortCursorSession(sessionId) {
   return false;
 }
 
-function isCursorSessionActive(sessionId) {
+function isCursorSessionActive(sessionId: string): boolean {
   return activeCursorProcesses.has(sessionId);
 }
 
-function getActiveCursorSessions() {
+function getActiveCursorSessions(): string[] {
   return Array.from(activeCursorProcesses.keys());
 }
 

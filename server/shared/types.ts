@@ -84,6 +84,7 @@ export type MessageKind =
   | 'status'
   | 'permission_request'
   | 'permission_cancelled'
+  | 'permission_warning'
   | 'session_created'
   | 'interactive_prompt'
   | 'task_notification';

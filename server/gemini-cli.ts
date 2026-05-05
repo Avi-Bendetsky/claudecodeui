@@ -1,8 +1,5 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import crossSpawn from 'cross-spawn';
-
-// Use cross-spawn on Windows for correct .cmd resolution (same pattern as cursor-cli.js)
-const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -11,14 +8,40 @@ import GeminiResponseHandler from './gemini-response-handler.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import type { WebSocketWriter } from './modules/websocket/services/websocket-writer.service.js';
 
-let activeGeminiProcesses = new Map(); // Track active processes by session ID
+const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 
-async function spawnGemini(command, options = {}, ws) {
+type GeminiOptions = {
+  sessionId?: string;
+  projectPath?: string;
+  cwd?: string;
+  toolsSettings?: {
+    allowedTools?: string[];
+    disallowedTools?: string[];
+    skipPermissions?: boolean;
+  };
+  permissionMode?: string;
+  images?: Array<{ data: string }>;
+  model?: string;
+  debug?: boolean;
+  skipPermissions?: boolean;
+  sessionSummary?: string;
+};
+
+type GeminiProcess = ChildProcess & {
+  tempImagePaths?: string[];
+  tempDir?: string | null;
+  sessionId?: string;
+};
+
+const activeGeminiProcesses = new Map<string, GeminiProcess>();
+
+async function spawnGemini(command: string, options: GeminiOptions = {}, ws: WebSocketWriter): Promise<void> {
     const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary } = options;
     let capturedSessionId = sessionId; // Track session ID throughout the process
     let sessionCreatedSent = false; // Track if we've already sent session-created event
-    let assistantBlocks = []; // Accumulate the full response blocks including tools
+    let assistantBlocks: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }> = [];
 
     // Use tools settings passed from frontend, or defaults
     const settings = toolsSettings || {
@@ -49,8 +72,8 @@ async function spawnGemini(command, options = {}, ws) {
     const workingDir = cleanPath;
 
     // Handle images by saving them to temporary files and passing paths to Gemini
-    const tempImagePaths = [];
-    let tempDir = null;
+    const tempImagePaths: string[] = [];
+    let tempDir: string | null = null;
     if (images && images.length > 0) {
         try {
             // Create temp directory in the project directory so Gemini can access it
@@ -168,16 +191,16 @@ async function spawnGemini(command, options = {}, ws) {
         spawnArgs = ['-c', 'exec "$0" "$@"', geminiPath, ...args];
     }
 
-    return new Promise((resolve, reject) => {
-        const geminiProcess = spawnFunction(spawnCmd, spawnArgs, {
+    return new Promise<void>((resolve, reject) => {
+        const geminiProcess: GeminiProcess = spawnFunction(spawnCmd, spawnArgs, {
             cwd: workingDir,
             stdio: ['pipe', 'pipe', 'pipe'],
             env: { ...process.env } // Inherit all environment variables
         });
         let terminalNotificationSent = false;
-        let terminalFailureReason = null;
+        let terminalFailureReason: string | null = null;
 
-        const notifyTerminalState = ({ code = null, error = null } = {}) => {
+        const notifyTerminalState = ({ code = null, error = null }: { code?: number | null; error?: unknown } = {}): void => {
             if (terminalNotificationSent) {
                 return;
             }
@@ -216,12 +239,11 @@ async function spawnGemini(command, options = {}, ws) {
         // Store sessionId on the process object for debugging
         geminiProcess.sessionId = processKey;
 
-        // Close stdin to signal we're done sending input
-        geminiProcess.stdin.end();
+        geminiProcess.stdin!.end();
 
         // Add timeout handler
-        const timeoutMs = 120000; // 120 seconds for slower models
-        let timeout;
+        const timeoutMs = 120000;
+        let timeout: ReturnType<typeof setTimeout> | undefined;
 
         const startTimeout = () => {
             if (timeout) clearTimeout(timeout);
@@ -243,17 +265,17 @@ async function spawnGemini(command, options = {}, ws) {
         }
 
         // Create response handler for NDJSON buffering
-        let responseHandler;
+        let responseHandler: GeminiResponseHandler | undefined;
         if (ws) {
             responseHandler = new GeminiResponseHandler(ws, {
-                onContentFragment: (content) => {
+                onContentFragment: (content: string) => {
                     if (assistantBlocks.length > 0 && assistantBlocks[assistantBlocks.length - 1].type === 'text') {
                         assistantBlocks[assistantBlocks.length - 1].text += content;
                     } else {
                         assistantBlocks.push({ type: 'text', text: content });
                     }
                 },
-                onToolUse: (event) => {
+                onToolUse: (event: { tool_id: string; tool_name: string; parameters: unknown }) => {
                     assistantBlocks.push({
                         type: 'tool_use',
                         id: event.tool_id,
@@ -261,7 +283,7 @@ async function spawnGemini(command, options = {}, ws) {
                         input: event.parameters
                     });
                 },
-                onToolResult: (event) => {
+                onToolResult: (event: { tool_id: string; output?: unknown; status?: string }) => {
                     if (capturedSessionId) {
                         if (assistantBlocks.length > 0) {
                             sessionManager.addMessage(capturedSessionId, 'assistant', [...assistantBlocks]);
@@ -275,7 +297,7 @@ async function spawnGemini(command, options = {}, ws) {
                         }]);
                     }
                 },
-                onInit: (event) => {
+                onInit: (event: { session_id?: string }) => {
                     if (capturedSessionId) {
                         const sess = sessionManager.getSession(capturedSessionId);
                         if (sess && !sess.cliSessionId) {
@@ -287,8 +309,7 @@ async function spawnGemini(command, options = {}, ws) {
             });
         }
 
-        // Handle stdout
-        geminiProcess.stdout.on('data', (data) => {
+        geminiProcess.stdout!.on('data', (data: Buffer) => {
             const rawOutput = data.toString();
             startTimeout(); // Re-arm the timeout
 
@@ -330,8 +351,7 @@ async function spawnGemini(command, options = {}, ws) {
             }
         });
 
-        // Handle stderr
-        geminiProcess.stderr.on('data', (data) => {
+        geminiProcess.stderr!.on('data', (data: Buffer) => {
             const errorMsg = data.toString();
 
             // Filter out deprecation warnings and "Loaded cached credentials" message
@@ -420,7 +440,7 @@ async function spawnGemini(command, options = {}, ws) {
     });
 }
 
-function abortGeminiSession(sessionId) {
+function abortGeminiSession(sessionId: string): boolean {
     let geminiProc = activeGeminiProcesses.get(sessionId);
     let processKey = sessionId;
 
@@ -453,11 +473,11 @@ function abortGeminiSession(sessionId) {
     return false;
 }
 
-function isGeminiSessionActive(sessionId) {
+function isGeminiSessionActive(sessionId: string): boolean {
     return activeGeminiProcesses.has(sessionId);
 }
 
-function getActiveGeminiSessions() {
+function getActiveGeminiSessions(): string[] {
     return Array.from(activeGeminiProcesses.keys());
 }
 

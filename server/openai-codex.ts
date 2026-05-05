@@ -1,38 +1,45 @@
-/**
- * OpenAI Codex SDK Integration
- * =============================
- *
- * This module provides integration with the OpenAI Codex SDK for non-interactive
- * chat sessions. It mirrors the pattern used in claude-sdk.js for consistency.
- *
- * ## Usage
- *
- * - queryCodex(command, options, ws) - Execute a prompt with streaming via WebSocket
- * - abortCodexSession(sessionId) - Cancel an active session
- * - isCodexSessionActive(sessionId) - Check if a session is running
- * - getActiveCodexSessions() - List all active sessions
- */
-
 import { Codex } from '@openai/codex-sdk';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import type { WebSocketWriter } from './modules/websocket/services/websocket-writer.service.js';
 
-// Track active sessions
-const activeCodexSessions = new Map();
+type CodexSessionEntry = {
+  thread: unknown;
+  codex: InstanceType<typeof Codex>;
+  status: 'running' | 'aborted' | 'completed';
+  abortController: AbortController;
+  startedAt: string;
+};
 
-/**
- * Transform Codex SDK event to WebSocket message format
- * @param {object} event - SDK event
- * @returns {object} - Transformed event for WebSocket
- */
-function transformCodexEvent(event) {
+type CodexOptions = {
+  sessionId?: string;
+  sessionSummary?: string;
+  cwd?: string;
+  projectPath?: string;
+  model?: string;
+  permissionMode?: string;
+};
+
+type CodexEvent = {
+  type: string;
+  item?: Record<string, unknown>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+  error?: unknown;
+  message?: string;
+  id?: string;
+  [key: string]: unknown;
+};
+
+const activeCodexSessions = new Map<string, CodexSessionEntry>();
+
+function transformCodexEvent(event: CodexEvent): Record<string, unknown> {
   // Map SDK event types to a consistent format
   switch (event.type) {
     case 'item.started':
     case 'item.updated':
-    case 'item.completed':
+    case 'item.completed': {
       const item = event.item;
       if (!item) {
         return { type: event.type, item: null };
@@ -122,6 +129,7 @@ function transformCodexEvent(event) {
             item: item
           };
       }
+    }
 
     case 'turn.started':
       return {
@@ -160,39 +168,28 @@ function transformCodexEvent(event) {
   }
 }
 
-/**
- * Map permission mode to Codex SDK options
- * @param {string} permissionMode - 'default', 'acceptEdits', or 'bypassPermissions'
- * @returns {object} - { sandboxMode, approvalPolicy }
- */
-function mapPermissionModeToCodexOptions(permissionMode) {
+function mapPermissionModeToCodexOptions(permissionMode?: string) {
   switch (permissionMode) {
     case 'acceptEdits':
       return {
-        sandboxMode: 'workspace-write',
-        approvalPolicy: 'never'
+        sandboxMode: 'workspace-write' as const,
+        approvalPolicy: 'never' as const
       };
     case 'bypassPermissions':
       return {
-        sandboxMode: 'danger-full-access',
-        approvalPolicy: 'never'
+        sandboxMode: 'danger-full-access' as const,
+        approvalPolicy: 'never' as const
       };
     case 'default':
     default:
       return {
-        sandboxMode: 'workspace-write',
-        approvalPolicy: 'untrusted'
+        sandboxMode: 'workspace-write' as const,
+        approvalPolicy: 'untrusted' as const
       };
   }
 }
 
-/**
- * Execute a Codex query with streaming
- * @param {string} command - The prompt to send
- * @param {object} options - Options including cwd, sessionId, model, permissionMode
- * @param {WebSocket|object} ws - WebSocket connection or response writer
- */
-export async function queryCodex(command, options = {}, ws) {
+export async function queryCodex(command: string, options: CodexOptions = {}, ws: WebSocketWriter): Promise<void> {
   const {
     sessionId,
     sessionSummary,
@@ -205,15 +202,14 @@ export async function queryCodex(command, options = {}, ws) {
   const workingDirectory = cwd || projectPath || process.cwd();
   const { sandboxMode, approvalPolicy } = mapPermissionModeToCodexOptions(permissionMode);
 
-  let codex;
-  let thread;
-  let currentSessionId = sessionId;
-  let terminalFailure = null;
+  let codex: InstanceType<typeof Codex> | undefined;
+  let thread: any;
+  let currentSessionId: string = sessionId || '';
+  let terminalFailure: unknown = null;
   const abortController = new AbortController();
 
   try {
-    // Initialize Codex SDK — pass baseUrl when OPENAI_API_BASE is set (e.g. to route through 9Router)
-    const codexInitOptions = {};
+    const codexInitOptions: Record<string, string> = {};
     if (process.env.OPENAI_API_BASE) codexInitOptions.baseUrl = process.env.OPENAI_API_BASE;
     if (process.env.OPENAI_API_KEY) codexInitOptions.apiKey = process.env.OPENAI_API_KEY;
     codex = new Codex(codexInitOptions);
@@ -303,21 +299,21 @@ export async function queryCodex(command, options = {}, ws) {
       });
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     const session = currentSessionId ? activeCodexSessions.get(currentSessionId) : null;
+    const err = error as Error;
     const wasAborted =
       session?.status === 'aborted' ||
-      error?.name === 'AbortError' ||
-      String(error?.message || '').toLowerCase().includes('aborted');
+      err?.name === 'AbortError' ||
+      String(err?.message || '').toLowerCase().includes('aborted');
 
     if (!wasAborted) {
       console.error('[Codex] Error:', error);
 
-      // Check if Codex SDK is available for a clearer error message
       const installed = await providerAuthService.isProviderInstalled('codex');
       const errorContent = !installed
         ? 'Codex CLI is not configured. Please set up authentication first.'
-        : error.message;
+        : err.message;
 
       sendMessage(ws, createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: currentSessionId, provider: 'codex' }));
       if (!terminalFailure) {
@@ -342,12 +338,7 @@ export async function queryCodex(command, options = {}, ws) {
   }
 }
 
-/**
- * Abort an active Codex session
- * @param {string} sessionId - Session ID to abort
- * @returns {boolean} - Whether abort was successful
- */
-export function abortCodexSession(sessionId) {
+export function abortCodexSession(sessionId: string): boolean {
   const session = activeCodexSessions.get(sessionId);
 
   if (!session) {
@@ -364,22 +355,13 @@ export function abortCodexSession(sessionId) {
   return true;
 }
 
-/**
- * Check if a session is active
- * @param {string} sessionId - Session ID to check
- * @returns {boolean} - Whether session is active
- */
-export function isCodexSessionActive(sessionId) {
+export function isCodexSessionActive(sessionId: string): boolean {
   const session = activeCodexSessions.get(sessionId);
   return session?.status === 'running';
 }
 
-/**
- * Get all active sessions
- * @returns {Array} - Array of active session info
- */
-export function getActiveCodexSessions() {
-  const sessions = [];
+export function getActiveCodexSessions(): Array<{ id: string; status: string; startedAt: string }> {
+  const sessions: Array<{ id: string; status: string; startedAt: string }> = [];
 
   for (const [id, session] of activeCodexSessions.entries()) {
     if (session.status === 'running') {
@@ -394,12 +376,7 @@ export function getActiveCodexSessions() {
   return sessions;
 }
 
-/**
- * Helper to send message via WebSocket or writer
- * @param {WebSocket|object} ws - WebSocket or response writer
- * @param {object} data - Data to send
- */
-function sendMessage(ws, data) {
+function sendMessage(ws: { send: (data: unknown) => void; isSSEStreamWriter?: boolean; isWebSocketWriter?: boolean }, data: unknown): void {
   try {
     if (ws.isSSEStreamWriter || ws.isWebSocketWriter) {
       // Writer handles stringification (SSEStreamWriter or WebSocketWriter)
