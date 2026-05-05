@@ -25,12 +25,34 @@ if os.path.isdir(_app_dir) and _app_dir not in sys.path:
 
 try:
     from db_utils import load_entities, initialize_db
-except ImportError:
+except (ImportError, ModuleNotFoundError):
+    import sqlite3 as _sqlite3
+
+    _db_path = os.path.join(_crewai_studio_path, "crewai.db")
+
     def initialize_db():
         pass
 
     def load_entities(entity_type: str):
-        return []
+        if not os.path.isfile(_db_path):
+            return []
+        conn = _sqlite3.connect(_db_path)
+        try:
+            rows = conn.execute(
+                "SELECT id, data FROM entities WHERE entity_type = ?",
+                (entity_type,),
+            ).fetchall()
+            result = []
+            for row_id, data_str in rows:
+                try:
+                    result.append((row_id, json.loads(data_str)))
+                except (json.JSONDecodeError, TypeError):
+                    result.append((row_id, {}))
+            return result
+        except Exception:
+            return []
+        finally:
+            conn.close()
 
 app = FastAPI(title="CrewAI Bridge", version="0.1.0")
 
