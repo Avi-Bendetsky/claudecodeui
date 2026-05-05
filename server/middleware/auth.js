@@ -40,8 +40,8 @@ const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
-  // Also check query param for SSE endpoints (EventSource can't set headers)
-  if (!token && req.query.token) {
+  // Allow query param token only for GET (SSE/EventSource can't set headers)
+  if (!token && req.method === 'GET' && req.query.token) {
     token = req.query.token;
   }
 

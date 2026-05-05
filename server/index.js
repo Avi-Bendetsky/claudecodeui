@@ -144,7 +144,14 @@ app.locals.wss = wss;
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || true,
+    origin: process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+        : [
+            `http://localhost:${process.env.VITE_PORT || 5173}`,
+            `http://localhost:${process.env.SERVER_PORT || 3001}`,
+            `http://127.0.0.1:${process.env.VITE_PORT || 5173}`,
+            `http://127.0.0.1:${process.env.SERVER_PORT || 3001}`,
+        ],
     exposedHeaders: ['X-Refreshed-Token'],
 }));
 app.use(express.json({

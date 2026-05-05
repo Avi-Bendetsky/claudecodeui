@@ -369,10 +369,11 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
       // Prepare the git clone URL with authentication if token is provided
       let cloneUrl = githubUrl;
       if (githubToken) {
-        // Convert HTTPS URL to authenticated URL
-        // Example: https://github.com/user/repo -> https://token@github.com/user/repo
         cloneUrl = githubUrl.replace('https://github.com', `https://${githubToken}@github.com`);
       }
+
+      const redactToken = (text) =>
+        githubToken ? text.replaceAll(githubToken, '***') : text;
 
       console.log('🔄 Cloning repository:', githubUrl);
       console.log('📁 Destination:', cloneDir);
@@ -391,7 +392,6 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
 
       gitProcess.stderr.on('data', (data) => {
         stderr += data.toString();
-        console.log('Git stderr:', data.toString());
       });
 
       gitProcess.on('close', (code) => {
@@ -399,8 +399,9 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
           console.log('✅ Repository cloned successfully');
           resolve(cloneDir);
         } else {
-          console.error('❌ Git clone failed:', stderr);
-          reject(new Error(`Git clone failed: ${stderr}`));
+          const safeStderr = redactToken(stderr);
+          console.error('❌ Git clone failed:', safeStderr);
+          reject(new Error(`Git clone failed: ${safeStderr}`));
         }
       });
 
